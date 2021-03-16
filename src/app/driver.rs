@@ -72,7 +72,7 @@ impl Driver {
         #[cfg(not(target_arch = "wasm32"))]
         {
             std::thread::spawn(move || {
-                f().unwrap();
+                let _stream = f().unwrap();
 
                 std::thread::park();
             });
