@@ -5,7 +5,6 @@ macro_rules! node {
 
     fn ui(ui: &mut Ui) -> bool $ui:block
 ) => {
-        #[typetag::serde]
         impl $crate::node::Node for $ident {
             fn name(&self) -> &str {
                 stringify!($ident)

@@ -58,7 +58,6 @@ impl Modulator for LowPassFilter {
     }
 }
 
-#[typetag::serde]
 impl Node for LowPassFilter {
     fn name(&self) -> &str {
         "Low Pass Filter"

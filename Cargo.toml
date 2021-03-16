@@ -16,4 +16,3 @@ eframe = "0.10.0"
 ron = "0.6.4"
 serde = { version = "1.0.124", features = ["derive"] }
 serde_traitobject = "0.2.7"
-typetag = "0.1.7"
