@@ -51,20 +51,24 @@ impl epi::App for App {
     }
 
     fn load(&mut self, storage: &dyn epi::Storage) {
-        /*
         if let Some(nodes_ron) = storage.get_string("nodes") {
-            if let Ok(nodes) = ron::from_str::<NodeManager>(nodes_ron.as_str()) {
+            if let Ok(nodes) = serde_json::from_str::<NodeManager>(nodes_ron.as_str()) {
                 self.nodes = nodes;
                 self.driver.set_nodes(self.nodes.clone());
             }
         }
-        */
     }
 
     fn save(&mut self, storage: &mut dyn epi::Storage) {
-        let nodes_ron = ron::to_string(&self.nodes).unwrap();
+        let nodes_ron = serde_json::to_string(&self.nodes).unwrap();
 
         storage.set_string("nodes", nodes_ron);
+
+        storage.flush();
+    }
+
+    fn auto_save_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs_f32(10.0)
     }
 
     fn max_size_points(&self) -> Vec2 {

@@ -667,6 +667,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "directories-next"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "339ee130d97a610ea5a5872d2bbb130fdf68884ff09d3028b81bec8a1ac23bbc"
+dependencies = [
+ "cfg-if 1.0.0",
+ "dirs-sys-next",
+]
+
+[[package]]
+name = "dirs-sys-next"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ebda144c4fe02d1f7ea1a7d9641b6fc6b580adcfa024ae48797ecdeb6825b4d"
+dependencies = [
+ "libc",
+ "redox_users",
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "discard"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -721,6 +742,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04fa506a0f70b14bc9d04b59b862e621521728df5beae4403ce69a033658f78f"
 dependencies = [
  "epaint",
+ "serde",
 ]
 
 [[package]]
@@ -730,9 +752,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7dac409ab9b1d83620e54c1a4f7f0a247b28f192b2f9185a5410277bc907ae7"
 dependencies = [
  "clipboard",
+ "directories-next",
  "egui",
  "epi",
  "glium",
+ "serde",
+ "serde_json",
  "webbrowser",
 ]
 
@@ -745,6 +770,8 @@ dependencies = [
  "egui",
  "epi",
  "js-sys",
+ "serde",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -761,6 +788,9 @@ name = "emath"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "632c6ab1d569238921dc1e590640862ffb09226b0483f3b60950a3ec34f84b48"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "epaint"
@@ -772,6 +802,7 @@ dependencies = [
  "atomic_refcell",
  "emath",
  "rusttype",
+ "serde",
 ]
 
 [[package]]
@@ -781,6 +812,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3092dca4ab12b5f1ce942440526ae797d996bedc503b70f1ec484f8da408059e"
 dependencies = [
  "egui",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1716,6 +1749,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "redox_users"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "528532f3d801c87aec9def2add9ca802fe569e44a544afe633765267840abe64"
+dependencies = [
+ "getrandom",
+ "redox_syscall",
+]
+
+[[package]]
 name = "regex"
 version = "1.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1763,17 +1806,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cabe4fa914dec5870285fa7f71f602645da47c486e68486d2b4ceb4a343e90ac"
 
 [[package]]
-name = "ron"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "064ea8613fb712a19faf920022ec8ddf134984f100090764a4e1d768f3827f1f"
-dependencies = [
- "base64",
- "bitflags",
- "serde",
-]
-
-[[package]]
 name = "rust-synth"
 version = "0.1.0"
 dependencies = [
@@ -1782,8 +1814,8 @@ dependencies = [
  "cpal",
  "crossbeam",
  "eframe",
- "ron",
  "serde",
+ "serde_json",
  "serde_traitobject",
 ]
 

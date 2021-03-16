@@ -43,12 +43,12 @@ impl SlotValue {
 pub struct NodeId(pub u64);
 
 pub trait NodeClone {
-    fn box_clone(&self) -> s::Box<dyn Node>;
+    fn box_clone(&self) -> Box<dyn Node>;
 }
 
 impl<T: Node + Clone> NodeClone for T {
-    fn box_clone(&self) -> s::Box<dyn Node> {
-        s::Box::new(self.clone())
+    fn box_clone(&self) -> Box<dyn Node> {
+        Box::new(self.clone())
     }
 }
 
@@ -99,7 +99,8 @@ impl Node for OutputNode {
 
 #[derive(Serialize, Deserialize)]
 pub struct NodeContainer {
-    pub inner: s::Box<dyn Node>,
+    #[serde(with = "serde_traitobject")]
+    pub inner: Box<dyn Node>,
     pub connections: HashMap<String, (NodeId, String)>,
 }
 
@@ -115,7 +116,7 @@ impl Clone for NodeContainer {
 impl NodeContainer {
     pub fn new(node: impl Node) -> Self {
         Self {
-            inner: s::Box::new(node),
+            inner: Box::new(node),
             connections: HashMap::new(),
         }
     }
