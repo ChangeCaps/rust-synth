@@ -1,4 +1,4 @@
-import * as wasm from './synth_bg.wasm';
+import * as wasm from './rust_synth_bg.wasm';
 
 const heap = new Array(32).fill(undefined);
 
