@@ -1,0 +1,15 @@
+{
+  "name": "synth",
+  "collaborators": [
+    "= <hjalte.nannestad@gmail.com>"
+  ],
+  "version": "0.1.0",
+  "files": [
+    "synth_bg.wasm",
+    "synth.js",
+    "synth.d.ts"
+  ],
+  "module": "synth.js",
+  "types": "synth.d.ts",
+  "sideEffects": false
+}
