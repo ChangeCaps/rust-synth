@@ -8,11 +8,17 @@ pub fn knob(ui: &mut Ui, value: &mut f64, min: f64, max: f64) -> bool {
     let (rect, response) = ui.allocate_exact_size(desired_size, Sense::hover());
 
     if response.hovered() {
-        let speed = if ui.input().modifiers.ctrl { 0.5 } else { 1.0 };
+        let speed_base = if cfg!(target_arch = "wasm32") {
+            0.005
+        } else {
+            0.0025
+        };
+        let speed_mod = if ui.input().modifiers.ctrl { 0.5 } else { 1.0 };
+        let speed = speed_base * speed_mod;
 
         let prev = *value;
 
-        *value += ui.input().scroll_delta.y as f64 * 0.0025 * (max - min) * speed;
+        *value += ui.input().scroll_delta.y as f64 * speed * (max - min);
         *value = value.min(max).max(min);
 
         changed = prev != *value;

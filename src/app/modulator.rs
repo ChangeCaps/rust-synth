@@ -68,7 +68,7 @@ impl Node for LowPassFilter {
     }
 
     fn output_slot_types(&self) -> &[(&'static str, SlotType)] {
-        &[("out", SlotType::Modulator)]
+        &[("out", SlotType::Sound)]
     }
 
     fn run(

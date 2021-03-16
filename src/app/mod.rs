@@ -32,7 +32,8 @@ impl App {
             Box::new(AddNode),
         ];
 
-        let nodes = NodeManager::from(nodes);
+        let mut nodes = NodeManager::from(nodes);
+        nodes.calculate_segments(440.0);
 
         driver.set_nodes(nodes.clone());
 
@@ -50,18 +51,24 @@ impl epi::App for App {
     }
 
     fn load(&mut self, storage: &dyn epi::Storage) {
+        /*
         if let Some(nodes_ron) = storage.get_string("nodes") {
-            let nodes = ron::from_str::<NodeManager>(nodes_ron.as_str()).unwrap();
-
-            self.nodes = nodes;
-            self.driver.set_nodes(self.nodes.clone());
+            if let Ok(nodes) = ron::from_str::<NodeManager>(nodes_ron.as_str()) {
+                self.nodes = nodes;
+                self.driver.set_nodes(self.nodes.clone());
+            }
         }
+        */
     }
 
     fn save(&mut self, storage: &mut dyn epi::Storage) {
         let nodes_ron = ron::to_string(&self.nodes).unwrap();
 
         storage.set_string("nodes", nodes_ron);
+    }
+
+    fn max_size_points(&self) -> Vec2 {
+        Vec2::new(10000.0, 10000.0)
     }
 
     fn update(&mut self, ctx: &CtxRef, _frame: &mut epi::Frame) {

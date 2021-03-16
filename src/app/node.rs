@@ -89,7 +89,7 @@ impl Node for OutputNode {
         _ctx: &NodeCtx,
         input: HashMap<String, SlotValue>,
     ) -> Vec<(&'static str, SlotValue)> {
-        vec![("out", input["out"])]
+        vec![("output node", input["out"])]
     }
 
     fn ui(&mut self, _ui: &mut Ui) -> bool {
@@ -179,16 +179,20 @@ impl NodeManager {
 
         self.run_node(ctx, &self.output_node.clone(), &mut outputs);
 
-        outputs[&(self.output_node, "out")].clone().unwrap_f64()
+        outputs[&(self.output_node, "output node")]
+            .clone()
+            .unwrap_f64()
     }
+
+    const NUM_SAMPLES: usize = 200;
 
     pub fn calculate_segments(&mut self, freq: f64) {
         self.segments.clear();
 
-        for i in 0..500 {
+        for i in 0..Self::NUM_SAMPLES {
             let mut output = HashMap::new();
 
-            let sample_length = 2.0 / 500.0 / freq;
+            let sample_length = 2.0 / Self::NUM_SAMPLES as f64 / freq;
 
             let ctx = NodeCtx {
                 freq,
@@ -196,12 +200,14 @@ impl NodeManager {
                 time: i as f64 * sample_length,
             };
 
-            self.run_node(&ctx, &self.output_node.clone(), &mut output);
+            for id in self.nodes.keys().cloned().collect::<Vec<_>>() {
+                self.run_node(&ctx, &id.clone(), &mut output);
+            }
 
             for id in self.nodes.keys() {
                 if let Some(value) = output.get(&(*id, "out")) {
                     if let SlotValue::Sound(s) = value {
-                        self.segments.entry(*id).or_insert(vec![0.0; 500])[i] = *s;
+                        self.segments.entry(*id).or_insert(Vec::new()).push(*s);
                     }
                 }
             }
@@ -284,10 +290,12 @@ impl NodeManager {
                             if let Some(segment) = segments.get(id) {
                                 ui.vertical(|ui| {
                                     let curve = Curve::from_values_iter(
-                                        segment
-                                            .iter()
-                                            .enumerate()
-                                            .map(|(i, s)| Value::new(i as f64 * 0.004, *s)),
+                                        segment.iter().enumerate().map(|(i, s)| {
+                                            Value::new(
+                                                i as f64 * (1.0 / Self::NUM_SAMPLES as f64),
+                                                *s,
+                                            )
+                                        }),
                                     );
 
                                     let plot =

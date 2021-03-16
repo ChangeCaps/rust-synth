@@ -2,7 +2,7 @@ use crate::modulator::*;
 use crate::node::*;
 use crate::wave::*;
 use cpal::{traits::*, *};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use crossbeam::channel::{unbounded, Receiver, Sender};
 
 pub enum DriverCommand {
     SetNodes(NodeManager),
@@ -10,6 +10,7 @@ pub enum DriverCommand {
 }
 
 pub struct DriverHandle {
+    stream: Option<Stream>,
     sender: Sender<DriverCommand>,
 }
 
@@ -40,14 +41,18 @@ impl Driver {
     }
 
     pub fn run() -> Result<DriverHandle, anyhow::Error> {
-        let (sender, receiver) = channel();
+        let (sender, receiver) = unbounded();
 
-        std::thread::spawn(move || -> Result<(), anyhow::Error> {
+        let f = move || -> Result<Stream, anyhow::Error> {
             let host = default_host();
 
-            let device = host.default_output_device().unwrap();
+            let device = host
+                .default_output_device()
+                .expect("failed to get default device");
 
-            let config = device.default_output_config().unwrap();
+            let config = device
+                .default_output_config()
+                .expect("failed to get default output config");
 
             let driver = Driver {
                 nodes: None,
@@ -55,18 +60,37 @@ impl Driver {
                 receiver,
             };
 
-            let _stream = match config.sample_format() {
+            let stream = match config.sample_format() {
                 cpal::SampleFormat::F32 => run::<f32>(driver, &device, &config.into())?,
                 cpal::SampleFormat::I16 => run::<i16>(driver, &device, &config.into())?,
                 cpal::SampleFormat::U16 => run::<u16>(driver, &device, &config.into())?,
             };
 
-            std::thread::park();
+            Ok(stream)
+        };
 
-            Ok(())
-        });
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            std::thread::spawn(move || {
+                f().unwrap();
 
-        Ok(DriverHandle { sender })
+                std::thread::park();
+            });
+
+            Ok(DriverHandle {
+                sender,
+                stream: None,
+            })
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            let stream = f()?;
+            Ok(DriverHandle {
+                sender,
+                stream: Some(stream),
+            })
+        }
     }
 }
 
