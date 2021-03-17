@@ -1,6 +1,5 @@
 use crate::knob::knob;
 use crate::node::*;
-use eframe::egui::paint::*;
 use eframe::egui::*;
 use std::collections::HashMap;
 
@@ -64,19 +63,28 @@ impl Node for SquareWave {
     }
 
     fn input_slot_types(&self) -> &[(&'static str, SlotType)] {
-        &[]
+        &[("freq", SlotType::Float)]
     }
 
     fn output_slot_types(&self) -> &[(&'static str, SlotType)] {
-        &[("out", SlotType::Sound)]
+        &[("freq_out", SlotType::Float), ("out", SlotType::Float)]
+    }
+
+    fn display_out(&self) -> &Option<&str> {
+        &Some("out")
     }
 
     fn run(
-        &mut self,
+        &self,
         ctx: &NodeCtx,
-        _input: HashMap<String, SlotValue>,
+        input: HashMap<String, SlotValue>,
     ) -> Vec<(&'static str, SlotValue)> {
-        vec![("out", SlotValue::Sound(self.gen(ctx.freq, ctx.time)))]
+        let freq = input["freq"].unwrap_f64(ctx.freq);
+
+        vec![
+            ("freq_out", SlotValue::Float(freq)),
+            ("out", SlotValue::Float(self.gen(freq, ctx.time))),
+        ]
     }
 
     fn ui(&mut self, ui: &mut Ui) -> bool {
@@ -121,19 +129,28 @@ impl Node for SineWave {
     }
 
     fn input_slot_types(&self) -> &[(&'static str, SlotType)] {
-        &[]
+        &[("freq", SlotType::Float)]
     }
 
     fn output_slot_types(&self) -> &[(&'static str, SlotType)] {
-        &[("out", SlotType::Sound)]
+        &[("freq_out", SlotType::Float), ("out", SlotType::Float)]
+    }
+
+    fn display_out(&self) -> &Option<&str> {
+        &Some("out")
     }
 
     fn run(
-        &mut self,
+        &self,
         ctx: &NodeCtx,
-        _input: HashMap<String, SlotValue>,
+        input: HashMap<String, SlotValue>,
     ) -> Vec<(&'static str, SlotValue)> {
-        vec![("out", SlotValue::Sound(self.gen(ctx.freq, ctx.time)))]
+        let freq = input["freq"].unwrap_f64(ctx.freq);
+
+        vec![
+            ("freq_out", SlotValue::Float(freq)),
+            ("out", SlotValue::Float(self.gen(freq, ctx.time))),
+        ]
     }
 
     fn ui(&mut self, ui: &mut Ui) -> bool {
@@ -148,13 +165,19 @@ pub struct SawWave {
 
 impl SawWave {
     pub fn new() -> Self {
-        Self { modulation: 1.0 }
+        Self { modulation: 0.0 }
     }
 }
 
 impl WaveGenerator for SawWave {
     fn gen(&self, freq: f64, time: f64) -> f64 {
-        (time * freq) % 1.0 * 2.0 - 1.0
+        let x = (time * freq + self.modulation * 0.25 + 0.5) % 1.0 * 2.0 - 1.0;
+
+        if x.abs() > self.modulation {
+            (time * freq + self.modulation * 0.25) % 1.0 * 2.0 - 1.0
+        } else {
+            x
+        }
     }
 
     fn ui(&mut self, ui: &mut Ui) -> bool {
@@ -162,7 +185,7 @@ impl WaveGenerator for SawWave {
 
         ui.vertical(|ui| {
             ui.label("Mod");
-            changed = knob(ui, &mut self.modulation, 0.0, 1.0) && changed;
+            changed = knob(ui, &mut self.modulation, 0.0, 0.5) && changed;
         });
 
         changed
@@ -175,19 +198,28 @@ impl Node for SawWave {
     }
 
     fn input_slot_types(&self) -> &[(&'static str, SlotType)] {
-        &[]
+        &[("freq", SlotType::Float)]
     }
 
     fn output_slot_types(&self) -> &[(&'static str, SlotType)] {
-        &[("out", SlotType::Sound)]
+        &[("freq_out", SlotType::Float), ("out", SlotType::Float)]
+    }
+
+    fn display_out(&self) -> &Option<&str> {
+        &Some("out")
     }
 
     fn run(
-        &mut self,
+        &self,
         ctx: &NodeCtx,
-        _input: HashMap<String, SlotValue>,
+        input: HashMap<String, SlotValue>,
     ) -> Vec<(&'static str, SlotValue)> {
-        vec![("out", SlotValue::Sound(self.gen(ctx.freq, ctx.time)))]
+        let freq = input["freq"].unwrap_f64(ctx.freq);
+
+        vec![
+            ("freq_out", SlotValue::Float(freq)),
+            ("out", SlotValue::Float(self.gen(freq, ctx.time))),
+        ]
     }
 
     fn ui(&mut self, ui: &mut Ui) -> bool {

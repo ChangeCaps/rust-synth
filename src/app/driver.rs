@@ -1,6 +1,4 @@
-use crate::modulator::*;
 use crate::node::*;
-use crate::wave::*;
 use cpal::{traits::*, *};
 use crossbeam::channel::{unbounded, Receiver, Sender};
 
@@ -10,7 +8,7 @@ pub enum DriverCommand {
 }
 
 pub struct DriverHandle {
-    stream: Option<Stream>,
+    _stream: Option<Stream>,
     sender: Sender<DriverCommand>,
 }
 
@@ -79,7 +77,7 @@ impl Driver {
 
             Ok(DriverHandle {
                 sender,
-                stream: None,
+                _stream: None,
             })
         }
 
@@ -88,7 +86,7 @@ impl Driver {
             let stream = f()?;
             Ok(DriverHandle {
                 sender,
-                stream: Some(stream),
+                _stream: Some(stream),
             })
         }
     }
@@ -112,13 +110,14 @@ fn run<T: Sample>(
                     freq: driver.freq,
                     time,
                     sample_length,
+                    last_sample: 0.0,
                 };
 
                 driver.handle_commands();
 
                 time += 1.0 / sample_rate;
 
-                let wave = driver.nodes.as_mut().unwrap().run(&ctx);
+                let wave = driver.nodes.as_mut().unwrap().run(&ctx).max(-5.0).min(5.0);
 
                 let out = wave * 0.01;
 

@@ -1,13 +1,22 @@
 #[macro_export]
 macro_rules! node {
-    ($ident:ident => $name:literal (ctx: &NodeCtx, $($input:ident: $i_ty:ident),*) -> [$($output:ident: $o_ty:ident),*]
+    ($ident:ident => $name:literal (&mut $self0:ident, $ctx:ident: &NodeCtx$(,$input:ident: $i_ty:ident)*) ->
+        [$($output:ident: $o_ty:ident),*]
         $block:block
 
-    fn ui(ui: &mut Ui) -> bool $ui:block
+    $(
+        fn setup(&mut $setup_self:ident) {
+
+        }
+    )?
+
+    $(display $should_display:ident;)?
+
+    fn ui(&mut $self:ident, $ui_param:ident: &mut Ui) -> bool $ui:block
 ) => {
         impl $crate::node::Node for $ident {
             fn name(&self) -> &str {
-                stringify!($ident)
+                $name
             }
 
             fn input_slot_types(&self) -> &[(&'static str, $crate::node::SlotType)] {
@@ -18,9 +27,22 @@ macro_rules! node {
                 &[$((stringify!($output), $crate::node::SlotType::$o_ty)),*]
             }
 
+            $(
+                fn setup(&mut $setup_self) {
+
+                }
+            )?
+
+            $(
+                fn display_out(&self) -> &Option<&str> {
+                    &Some(stringify!($should_display))
+                }
+            )?
+
+            #[allow(unused_variables)]
             fn run(
-                &mut self,
-                ctx: &$crate::node::NodeCtx,
+                &$self0,
+                $ctx: &$crate::node::NodeCtx,
                 input: std::collections::HashMap<String, $crate::node::SlotValue>,
             ) -> Vec<(&'static str, $crate::node::SlotValue)> {
                 $(
@@ -34,13 +56,13 @@ macro_rules! node {
                 $block
 
                 vec![
-                    $((stringify!($output), $output))*
+                    $((stringify!($output), $output)),*
                 ]
             }
 
             fn ui(
-                &mut self,
-                ui: &mut eframe::egui::Ui,
+                &mut $self,
+                $ui_param: &mut eframe::egui::Ui,
             ) -> bool {
                 $ui
             }

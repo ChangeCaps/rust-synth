@@ -1,16 +1,20 @@
 pub mod driver;
+pub mod freq_nodes;
 pub mod knob;
 pub mod macros;
 pub mod math_nodes;
 pub mod modulator;
 pub mod node;
 pub mod note;
+pub mod value_node;
 pub mod wave;
 
 use crate::driver::*;
+use crate::freq_nodes::*;
 use crate::math_nodes::*;
 use crate::modulator::*;
 use crate::node::*;
+use crate::value_node::*;
 use crate::wave::*;
 use eframe::{egui::*, epi};
 
@@ -29,7 +33,10 @@ impl App {
             Box::new(SineWave::new()),
             Box::new(SawWave::new()),
             Box::new(LowPassFilter::new()),
-            Box::new(AddNode),
+            Box::new(MathNode::new()),
+            Box::new(MathNode::new()),
+            Box::new(ValueNode::new()),
+            Box::new(FreqShiftNode::new()),
         ];
 
         let mut nodes = NodeManager::from(nodes);
@@ -104,6 +111,7 @@ impl epi::App for App {
 
         CentralPanel::default().frame(frame).show(ctx, |ui| {
             let mutated = self.nodes.ui(ui, self.visualiser_freq);
+            self.visualiser_freq = self.visualiser_freq.max(1.0);
 
             if mutated {
                 self.driver.set_nodes(self.nodes.clone());

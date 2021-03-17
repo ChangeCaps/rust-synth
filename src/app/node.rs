@@ -1,40 +1,35 @@
+use crate::freq_nodes::*;
 use eframe::egui::{plot::*, *};
 use serde::{Deserialize, Serialize};
 use serde_traitobject as s;
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub struct NodeCtx {
     pub freq: f64,
     pub time: f64,
     pub sample_length: f64,
+    pub last_sample: f64,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub enum SlotType {
-    Sound,
-    Modulator,
+    Float,
 }
 
-impl SlotType {
-    pub fn to_default(&self) -> SlotValue {
-        match self {
-            SlotType::Sound => SlotValue::Sound(0.0),
-            SlotType::Modulator => SlotValue::Sound(1.0),
-        }
-    }
-}
+impl SlotType {}
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum SlotValue {
-    Sound(f64),
-    Modulator(f64),
+    Float(f64),
+    None,
 }
 
 impl SlotValue {
-    pub fn unwrap_f64(self) -> f64 {
+    pub fn unwrap_f64(self, default: f64) -> f64 {
         match self {
-            SlotValue::Sound(v) => v,
-            SlotValue::Modulator(v) => v,
+            SlotValue::Float(f) => f,
+            SlotValue::None => default,
         }
     }
 }
@@ -59,8 +54,18 @@ pub trait Node: 'static + Send + Sync + NodeClone + s::Serialize + s::Deserializ
 
     fn output_slot_types(&self) -> &[(&'static str, SlotType)];
 
+    fn setup(&mut self) {}
+
+    fn save_last_output(&self) -> &Option<&str> {
+        &None
+    }
+
+    fn display_out(&self) -> &Option<&str> {
+        &None
+    }
+
     fn run(
-        &mut self,
+        &self,
         ctx: &NodeCtx,
         input: HashMap<String, SlotValue>,
     ) -> Vec<(&'static str, SlotValue)>;
@@ -77,7 +82,7 @@ impl Node for OutputNode {
     }
 
     fn input_slot_types(&self) -> &[(&'static str, SlotType)] {
-        &[("out", SlotType::Sound)]
+        &[("out", SlotType::Float)]
     }
 
     fn output_slot_types(&self) -> &[(&'static str, SlotType)] {
@@ -85,7 +90,7 @@ impl Node for OutputNode {
     }
 
     fn run(
-        &mut self,
+        &self,
         _ctx: &NodeCtx,
         input: HashMap<String, SlotValue>,
     ) -> Vec<(&'static str, SlotValue)> {
@@ -102,6 +107,7 @@ pub struct NodeContainer {
     #[serde(with = "serde_traitobject")]
     pub inner: Box<dyn Node>,
     pub connections: HashMap<String, (NodeId, String)>,
+    pub last_sample: Option<f64>,
 }
 
 impl Clone for NodeContainer {
@@ -109,6 +115,7 @@ impl Clone for NodeContainer {
         Self {
             inner: self.inner.box_clone(),
             connections: self.connections.clone(),
+            last_sample: self.last_sample.clone(),
         }
     }
 }
@@ -118,6 +125,7 @@ impl NodeContainer {
         Self {
             inner: Box::new(node),
             connections: HashMap::new(),
+            last_sample: None,
         }
     }
 }
@@ -127,6 +135,7 @@ impl From<Box<dyn Node>> for NodeContainer {
         Self {
             inner: node.into(),
             connections: HashMap::new(),
+            last_sample: None,
         }
     }
 }
@@ -136,6 +145,7 @@ pub struct NodeManager {
     pub selected_slot: Option<(String, NodeId, bool, SlotType)>,
     pub nodes: HashMap<NodeId, NodeContainer>,
     pub next_id: NodeId,
+    pub input_node: NodeId,
     pub output_node: NodeId,
     pub segments: HashMap<NodeId, Vec<f64>>,
 }
@@ -156,13 +166,15 @@ impl NodeManager {
     pub fn new() -> Self {
         let mut nodes = HashMap::new();
 
-        nodes.insert(NodeId(0), NodeContainer::new(OutputNode));
+        nodes.insert(NodeId(0), NodeContainer::new(InputFreqNode));
+        nodes.insert(NodeId(1), NodeContainer::new(OutputNode));
 
         Self {
             selected_slot: None,
             nodes,
-            next_id: NodeId(1),
-            output_node: NodeId(0),
+            next_id: NodeId(2),
+            input_node: NodeId(0),
+            output_node: NodeId(1),
             segments: HashMap::new(),
         }
     }
@@ -178,55 +190,76 @@ impl NodeManager {
     pub fn run(&mut self, ctx: &NodeCtx) -> f64 {
         let mut outputs: HashMap<(NodeId, &'static str), SlotValue> = HashMap::new();
 
-        self.run_node(ctx, &self.output_node.clone(), &mut outputs);
+        let inputs = self.gen_inputs(ctx, &self.output_node.clone(), &mut outputs);
+        self.run_node(ctx, &self.output_node.clone(), inputs, &mut outputs);
 
         outputs[&(self.output_node, "output node")]
             .clone()
-            .unwrap_f64()
+            .unwrap_f64(0.0)
     }
 
-    const NUM_SAMPLES: usize = 200;
+    const NUM_SAMPLES: usize = 100;
 
     pub fn calculate_segments(&mut self, freq: f64) {
         self.segments.clear();
 
-        for i in 0..Self::NUM_SAMPLES {
-            let mut output = HashMap::new();
+        for id in self.nodes.keys().cloned().collect::<Vec<_>>() {
+            let node = self.nodes.get_mut(&id).unwrap();
 
-            let sample_length = 2.0 / Self::NUM_SAMPLES as f64 / freq;
+            node.inner.setup();
+            node.last_sample = None;
 
-            let ctx = NodeCtx {
-                freq,
-                sample_length,
-                time: i as f64 * sample_length,
-            };
+            for i in 0..Self::NUM_SAMPLES {
+                let mut output = HashMap::new();
 
-            for id in self.nodes.keys().cloned().collect::<Vec<_>>() {
-                self.run_node(&ctx, &id.clone(), &mut output);
-            }
+                let sample_length = 2.0 / Self::NUM_SAMPLES as f64 / freq;
 
-            for id in self.nodes.keys() {
-                if let Some(value) = output.get(&(*id, "out")) {
-                    if let SlotValue::Sound(s) = value {
-                        self.segments.entry(*id).or_insert(Vec::new()).push(*s);
+                let mut ctx = NodeCtx {
+                    freq,
+                    sample_length,
+                    time: i as f64 * sample_length,
+                    last_sample: self.nodes[&id].last_sample.unwrap_or(0.0),
+                };
+
+                let mut inputs = self.gen_inputs(&ctx, &id.clone(), &mut output);
+
+                if let Some(freq) = inputs.get("freq") {
+                    let freq = freq.unwrap_f64(ctx.freq);
+                    ctx.sample_length = 2.0 / Self::NUM_SAMPLES as f64 / freq;
+                    ctx.time = i as f64 * ctx.sample_length;
+
+                    output = HashMap::new();
+
+                    inputs = self.gen_inputs(&ctx, &id.clone(), &mut output);
+                }
+
+                self.run_node(&ctx, &id.clone(), inputs, &mut output);
+
+                if let Some(name) = self.nodes[&id].inner.display_out() {
+                    if let Some(value) = output.get(&(id, name)) {
+                        if let SlotValue::Float(s) = value {
+                            self.segments.entry(id).or_insert(Vec::new()).push(*s);
+                        }
                     }
                 }
             }
         }
     }
 
-    pub fn run_node(
+    pub fn gen_inputs(
         &mut self,
         ctx: &NodeCtx,
         id: &NodeId,
         outputs: &mut HashMap<(NodeId, &'static str), SlotValue>,
-    ) {
-        let node = &self.nodes[&id];
+    ) -> HashMap<String, SlotValue> {
+        let node = &self.nodes[id];
         let mut inputs = HashMap::new();
 
         for (input, (node, output)) in node.connections.clone() {
             if !outputs.contains_key(&(node, &output)) {
-                self.run_node(ctx, &node, outputs);
+                let inputs = self.gen_inputs(ctx, &node, outputs);
+
+                self.run_node(ctx, &node, inputs, outputs);
             }
 
             if let Some(output) = outputs.get(&(node, &output)) {
@@ -234,18 +267,38 @@ impl NodeManager {
             }
         }
 
-        let node = self.nodes.get_mut(&id).unwrap();
+        let node = &self.nodes[id];
 
-        for (slot, ty) in node.inner.input_slot_types() {
+        for (slot, _ty) in node.inner.input_slot_types() {
             if !inputs.contains_key(&slot.to_string()) {
-                inputs.insert(slot.to_string(), ty.to_default());
+                inputs.insert(slot.to_string(), SlotValue::None);
             }
         }
 
-        let output = node.inner.run(ctx, inputs);
+        inputs
+    }
+
+    pub fn run_node(
+        &mut self,
+        ctx: &NodeCtx,
+        id: &NodeId,
+        inputs: HashMap<String, SlotValue>,
+        outputs: &mut HashMap<(NodeId, &'static str), SlotValue>,
+    ) {
+        let node = self.nodes.get_mut(&id).unwrap();
+
+        let mut ctx = ctx.clone();
+        ctx.last_sample = node.last_sample.unwrap_or(0.0);
+
+        let output = node.inner.run(&ctx, inputs);
 
         for (name, value) in output {
             outputs.insert((*id, name), value);
+        }
+
+        if let Some(slot) = self.nodes[&id].inner.save_last_output() {
+            self.nodes.get_mut(id).unwrap().last_sample =
+                Some(outputs.get(&(*id, slot)).unwrap().unwrap_f64(0.0));
         }
     }
 
@@ -293,14 +346,21 @@ impl NodeManager {
                                     let curve = Curve::from_values_iter(
                                         segment.iter().enumerate().map(|(i, s)| {
                                             Value::new(
-                                                i as f64 * (1.0 / Self::NUM_SAMPLES as f64),
+                                                i as f64 * (1.0 / Self::NUM_SAMPLES as f64) * 2.0,
                                                 *s,
                                             )
                                         }),
                                     );
 
-                                    let plot =
-                                        Plot::default().curve(curve).symmetrical_y_bounds(true);
+                                    let color = Color32::from_gray(130).additive();
+
+                                    let stroke = Stroke { width: 1.0, color };
+
+                                    let plot = Plot::default()
+                                        .curve(curve)
+                                        .symmetrical_y_bounds(true)
+                                        .view_aspect(1.0)
+                                        .vline(VLine::new(2.0, stroke));
 
                                     ui.add(plot);
                                 });
@@ -308,7 +368,7 @@ impl NodeManager {
 
                             ui.vertical(|ui| {
                                 for (name, ty) in node.inner.output_slot_types() {
-                                    let (pos, connect) = output(name, *id, *ty, selected_slot, ui);
+                                    let (pos, _connect) = output(name, *id, *ty, selected_slot, ui);
 
                                     output_slot_positions.insert((*name, *id), pos);
                                 }
@@ -333,7 +393,7 @@ impl NodeManager {
             self.selected_slot = None;
         }
 
-        if let Some((name, id, input, ty)) = &self.selected_slot {
+        if let Some((name, id, input, _ty)) = &self.selected_slot {
             let slot_positions = if *input {
                 &input_slot_positions
             } else {
